@@ -44,56 +44,53 @@ int streaming = 0;
 int longPress = 0;
 
 void setup() {
-  // ShiftRegister
-  pinMode(storePin, OUTPUT);
-  pinMode(shiftPin, OUTPUT);
-  pinMode(dataPin, OUTPUT);
+  // shiftRegister -> OUTPUT pins
+  pinMode (storePin, OUTPUT);
+  pinMode (shiftPin, OUTPUT);
+  pinMode (dataPin, OUTPUT);
 
-  //PINMODE FUER UEBRIGE PINS FESTLEGEN!!!!
+  // scenes -> INPUT pins
+  for (int i = 0; i < 10; i++) {
+    pinMode (i, INPUT);
+  }
+
+  // transitions -> INPUT pins
+  for (int i = 0; i < 4; i++) {
+    pinMode (tastenPinSwitch[i], INPUT);
+  }
+
+  // LIVE button -> INPUT pin
+  pinMode (tastenPinLive, INPUT);
+  
   initFarbe();
 }
 
 void loop () {
-
-
-
-  resetFarbe();
-  updateLED();
-  delay(1000);
-  setFarbe(0, ROT);
-  setFarbe(1, ROT);
-  setFarbe(2, ROT);
-  setFarbe(3, ROT);
-  updateLED();
-  delay(1000);
-  setFarbe(0, GRUEN);
-  setFarbe(1, GRUEN);
-  setFarbe(2, GRUEN);
-  setFarbe(3, GRUEN);
-  updateLED();
-  delay(1000);
+  tastenAuslesen ();
 }
 
-void tastenAuslesen() {
-  for (int i = 0; i < 10; i++) {
-    if (digitalRead(tastenPin[i]) == HIGH) {
-      setPreview(i);
+void tastenAuslesen () {
+  for (int i = 0; i < 10; i++) {                            // scans the scene buttons
+    if (digitalRead (tastenPin[i]) == HIGH) {
+      setPreview (i);
     }
   }
-  for (int i = 0; i < 4; i++) {
-    if (digitalRead(tastenPinSwitch[i]) == HIGH) {
-      switchScene(i);
+  
+  for (int i = 0; i < 4; i++) {                             // scans the transition buttons
+    if (digitalRead (tastenPinSwitch[i]) == HIGH) {
+      switchScene (i);
     }
   }
-  if (digitalRead(tastenPinLive) == HIGH) {
-    liveButtonPressed();
+  
+  if (digitalRead (tastenPinLive) == HIGH) {                // scans the live button
+    liveButtonPressed ();
   }
 }
 
 
 void setPreview(int taste) {
   if (preview == taste && longPress > 0) {
-    switchScene(preview);
+    switchScene(0);
   }
   else {
     longPress++;
@@ -108,6 +105,7 @@ void setPreview(int taste) {
 }
 
 void switchScene(int uebergang) {
+  longPress = 0;
   switch (uebergang) {
     case 0: tastenKombi(t1); break;         //cut
     case 1: tastenKombi(t2); break;         //300ms
@@ -122,8 +120,6 @@ void switchScene(int uebergang) {
   
   int nextPreview = (live + 5) % 10;        //setzt preview auf gleiche Szene mit anderer Cam
   setPreview(nextPreview);
-
-  longPress = 0;
 }
 
 void resetFarbe() {                          //setzt alle Knöpfe auf GELB, ausser LIVE Button
