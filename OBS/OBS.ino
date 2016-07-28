@@ -1,88 +1,100 @@
 #include <Keyboard.h>
 
-//Anzahl ShiftRegister fuer LED in 4er Schritten
-#define n 4
+//number of buttons in steps of 4; 4 buttons -> 8 LEDs per shiftregister
+#define n 16
 
-//Tastenkombinationen Uebergaenge
+//keycombinations send for scenes 0 to 9 -> no define needed
+
+//keycombinations send for transitions
 #define t1 10
 #define t2 11
 #define t3 12
 #define t4 13
 
-//Tastenkombinationen Live
+//keycombinations send for live-button
 #define stream 14
-#define aufnahme 15
+#define record 15
 
-//Pins fuer das ShiftRegister
+//keycombinations send for scenes intro/outro
+#define intro 16
+#define outro 17
+
+//pins for ShiftRegister
 #define shiftPin 11
 #define storePin 12
 #define dataPin  13
 
-//Tastenarray fuer LED
-int muster[4][2];
+//array LED pattern; pattern[NumButtons][2 Bits for color]
+int pattern[n][2];
 
-//Tastenkombination Ctrl
+//keykombination ctrl, shift, alt
 #define ctrl  128
 #define shift 129
 #define alt   130
 
-//Farben festlegen
-enum frb { AUS, ROT, GELB, GRUEN };
+//colors
+enum clr { BLK, RED, YEL, GRN };
 
-//TastenPins Szene
-int tastenPin[10]       = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-//TastenPin Live
-int tastenPinLive       = 10;
-//TastenPins Switch
-int tastenPinSwitch[4]  = {A0, A1, A2, A3};
+//states
+enum st  { READY, STREAMING, RECORDING };
 
-//Variablen
-int lastLive = 0;
-int live = 0;
-int preview = 0;
-int streaming = 0;
+//buttonPins Szene
+int buttonPin[10]       = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+//buttonPin Live
+int buttonPinLive       = 10;
+//buttonPins Switch
+int buttonPinSwitch[4]  = {A0, A1, A2, A3};
+
+//variable declaration
+int lastLive  = 0;
+int live      = 0;
+int preview   = 0;
 int longPress = 0;
+st  state     = READY;
 
 void setup() {
   // shiftRegister -> OUTPUT pins
-  pinMode (storePin, OUTPUT);
-  pinMode (shiftPin, OUTPUT);
-  pinMode (dataPin, OUTPUT);
+  pinMode (storePin,  OUTPUT);
+  pinMode (shiftPin,  OUTPUT);
+  pinMode (dataPin,   OUTPUT);
 
   // scenes -> INPUT pins
   for (int i = 0; i < 10; i++) {
     pinMode (i, INPUT);
+    digitalWrite (i, HIGH);
   }
 
   // transitions -> INPUT pins
   for (int i = 0; i < 4; i++) {
-    pinMode (tastenPinSwitch[i], INPUT);
+    pinMode (buttonPinSwitch[i], INPUT);
+    digitalWrite (buttonPinSwitch[i], HIGH);
   }
 
   // LIVE button -> INPUT pin
-  pinMode (tastenPinLive, INPUT);
+  pinMode (buttonPinLive, INPUT);
+  digitalWrite (buttonPinLive, HIGH);
   
-  initFarbe();
+  initColor();
 }
 
 void loop () {
-  tastenAuslesen ();
+  scanButtons ();
 }
 
-void tastenAuslesen () {
+void scanButtons () {
   for (int i = 0; i < 10; i++) {                            // scans the scene buttons
-    if (digitalRead (tastenPin[i]) == HIGH) {
+    if (digitalRead (buttonPin[i]) == LOW) {
       setPreview (i);
     }
   }
   
   for (int i = 0; i < 4; i++) {                             // scans the transition buttons
-    if (digitalRead (tastenPinSwitch[i]) == HIGH) {
+    if (digitalRead (buttonPinSwitch[i]) == LOW) {
       switchScene (i);
     }
   }
   
-  if (digitalRead (tastenPinLive) == HIGH) {                // scans the live button
+  if (digitalRead (buttonPinLive) == LOW) {                // scans the live button
     liveButtonPressed ();
   }
 }
@@ -95,10 +107,10 @@ void setPreview(int taste) {
   else {
     longPress++;
     preview = taste;
-    tastenKombi(taste);
-    resetFarbe();
-    setFarbe(live, ROT);
-    setFarbe(preview, GRUEN);
+    keyCom(taste);
+    resetColor();
+    setColor(live, RED);
+    setColor(preview, GRN);
     updateLED();
     delay(500);
   }
@@ -107,51 +119,53 @@ void setPreview(int taste) {
 void switchScene(int uebergang) {
   longPress = 0;
   switch (uebergang) {
-    case 0: tastenKombi(t1); break;         //cut
-    case 1: tastenKombi(t2); break;         //300ms
-    case 2: tastenKombi(t3); break;
-    case 3: tastenKombi(t4); break;
+    case 0: keyCom(t1); break;         //cut
+    case 1: keyCom(t2); break;         //300ms
+    case 2: keyCom(t3); break;
+    case 3: keyCom(t4); break;
   }
 
   lastLive = live;                          
   live = preview;
-  //setPreview(lastLive);                   //setzt preview auf das was zuletzt live war
+  //setPreview(lastLive);                   //set preview to what was last live
   
   
-  int nextPreview = (live + 5) % 10;        //setzt preview auf gleiche Szene mit anderer Cam
+  int nextPreview = (live + 5) % 10;        //set preview to the same scene with other cam
   setPreview(nextPreview);
+  longPress = 0;
 }
 
-void resetFarbe() {                          //setzt alle Knöpfe auf GELB, ausser LIVE Button
-  for (int i = n - 3; i >= 0; i--) {
-    for (int j = 1; j >= 0; j--) {
-      muster[i][j] = 1;
-    }
+void resetColor() {                          //set all buttons to color YEL, except LIVE button
+  initColor();
+  switch (state) {
+    case READY:     setColor(14, YEL);  break;
+    case STREAMING: setColor(14, GRN);  break;
+    case RECORDING: setColor(14, RED);  break;
   }
 }
 
-void initFarbe() {                          //setzt alle Knöpfe auf GELB
+void initColor() {                          //set all buttons to color YEL
   for (int i = n - 1; i >= 0; i--) {
     for (int j = 1; j >= 0; j--) {
-      muster[i][j] = 1;
+      pattern[i][j] = 1;
     }
   }
 }
 
-void setFarbe(int button, frb farbe) {           //farbe einer Taste aendern -> danach updateLED() aufrufen
-  switch (farbe) {
-    case ROT:     muster[button][0] = 1;
-      muster[button][1] = 0; break;
-    case GELB:    muster[button][0] = 1;
-      muster[button][1] = 1; break;
-    case GRUEN:   muster[button][0] = 0;
-      muster[button][1] = 1; break;
-    case AUS:     muster[button][0] = 1;
-      muster[button][1] = 1; break;
+void setColor(int button, clr color) {           //change color of a Button -> updateLED() to activate changes
+  switch (color) {
+    case RED:     pattern[button][0] = 1;
+                  pattern[button][1] = 0; break;
+    case YEL:     pattern[button][0] = 1;
+                  pattern[button][1] = 1; break;
+    case GRN:     pattern[button][0] = 0;
+                  pattern[button][1] = 1; break;
+    case BLK:     pattern[button][0] = 0;
+                  pattern[button][1] = 0; break;
   }
 }
 
-void updateLED() {                            //Farbaenderungen sichtbar machen
+void updateLED() {                            //make color changes visible; push pattern on shiftregisters
   // storePin sicherheitshalber auf LOW
   digitalWrite(storePin, LOW);
 
@@ -161,7 +175,7 @@ void updateLED() {                            //Farbaenderungen sichtbar machen
       // Aktion passiert bei Wechsel von LOW auf HIGH
       digitalWrite(shiftPin, LOW);
       // Jetzt den Wert der aktuellen Stelle ans Datenpin DS anlegen
-      digitalWrite(dataPin, !muster[i][j]);
+      digitalWrite(dataPin, !pattern[i][j]);
       // Dann ShiftPin SHCP von LOW auf HIGH, damit wird der Wert
       // am Datenpin ins Register geschoben.
       digitalWrite(shiftPin, HIGH);
@@ -175,83 +189,110 @@ void updateLED() {                            //Farbaenderungen sichtbar machen
 }
 
 void liveButtonPressed() {
-  //switch mit streaming variable - Stream, Aufnahme, Aus
-  switch (streaming) {
-    case 0:   streaming++;
-              tastenKombi(stream);  
-              setFarbe(16, GRUEN);  
-              updateLED();          break;    //Starte Stream ohne Aufnahme, Szene Intro
-    case 1:   streaming++;
-              tastenKombi(aufnahme);
-              setFarbe(16, ROT);    
-              updateLED();          break;    //Starte Aufnahme
-    case 2:   setFarbe(12, GRUEN);
-              setFarbe(13, ROT);
-              updateLED();
-              for (;;) {
-                //Bestätigung abfragen, wenn ja: Szene Outro, Aufnahme beenden, 10 Minuten warten, Stream beenden
-                if (digitalRead(tastenPinSwitch[2]) == HIGH) {
-                  ende();
-                  break;
-                }
-                //wenn nicht abbrechen
-                else if (digitalRead(tastenPinSwitch[3]) == HIGH) {
-                setFarbe(12, GELB);
-                setFarbe(13, GELB);
-                break;
-                }
-              }
+  delay(100);
+  //switch mit state variable - Stream, record, Aus
+  switch (state) {
+    case READY:     state = STREAMING;
+                    keyCom(stream);       //start stream
+                    keyCom(intro);        //set scene intro
+                    setColor(14, GRN);    //LIVE button green
+                    updateLED();          break;
+              
+    case STREAMING: state = RECORDING;
+                    keyCom(record);       //start recording
+                    setColor(14, RED);    //LIVE button red
+                    updateLED();          break;
+              
+    case RECORDING: setColor(12, GRN);    //YES
+                    setColor(13, RED);    //NO
+                    updateLED();
+                    delay(100);
+                    for (;;) {
+                      //STOP?, if YES: -> scene outro, stop recording, wait, stop streaming
+                      if (digitalRead(buttonPinSwitch[2]) == LOW) {
+                        stop();
+                        break;
+                      }
+                      //if NO: -> cancel
+                      else if (digitalRead(buttonPinSwitch[3]) == LOW) {
+                      setColor(12, YEL);
+                      setColor(13, YEL);
+                      updateLED();
+                      delay(300);
+                      break;
+                      }
+                    }
   }
 }
 
-void tastenKombi (int x) {
-  
+void keyCom (int x) {   //handles the keycombinations
   Keyboard.press(ctrl);
   Keyboard.press(shift);
   Keyboard.press(alt);
-  if(x < 10){
-    Keyboard.press(x);
-  }
-  else{
-    switch(x){
-      case t1:  Keyboard.press('q');
-                break;
-      case t2:  Keyboard.press('w');
-                break;
-      case t3:  Keyboard.press('e');
-                break;
-      case t4:  Keyboard.press('r');
-                break;
-      case stream:  Keyboard.press('t');
-                break;
-      case aufnahme:  Keyboard.press('z');
-                break;
-    }
+  
+  switch(x){
+    case 0:       Keyboard.press('0');
+                    break;
+    case 1:       Keyboard.press('1');
+                    break;
+    case 2:       Keyboard.press('2');
+                    break;
+    case 3:       Keyboard.press('3');
+                    break;
+    case 4:       Keyboard.press('4');
+                    break;
+    case 5:       Keyboard.press('5');
+                    break;
+    case 6:       Keyboard.press('6');
+                    break;
+    case 7:       Keyboard.press('7');
+                    break;
+    case 8:       Keyboard.press('8');
+                    break;
+    case 9:       Keyboard.press('9');
+                    break;
+    case t1:      Keyboard.press('q');
+                    break;
+    case t2:      Keyboard.press('w');
+                    break;
+    case t3:      Keyboard.press('e');
+                    break;
+    case t4:      Keyboard.press('r');
+                    break;
+    case stream:  Keyboard.press('t');
+                    break;
+    case record:  Keyboard.press('z');
+                    break;
+    case intro:   Keyboard.press('i');
+                    break;
+    case outro:   Keyboard.press('o');
+                    break;
   }
   delay(100);
   Keyboard.releaseAll();
 }
 
-void ende() {                                     //Aufnahme beenden, 10 min warten, stream beenden, Controller resetten
+void stop() {      //stop recording, wait, stop streaming, update LIVE button
+  //stop recording
+  keyCom(record);
+  keyCom(outro);
   
-  //Aufnahme beenden
-  tastenKombi(aufnahme);
-
-  //Warten
+  //wait
   for(int i = 0; i < 300; i++) {
-    if(digitalRead(tastenPinLive) == HIGH) {      //Stream sofort beenden
+    if(digitalRead(buttonPinLive) == LOW) {      //stop stream immediatly
       break;
     }
     delay(100);
   }
 
-  //Reset
-  tastenKombi(stream);
-  initFarbe();
-  lastLive  = 0;
-  live      = 0;
-  preview   = 0;
-  streaming = 0;
+  //stop streaming
+  keyCom(stream);
+
+  //update LIVE button
+  state = READY;
+  setColor(14, YEL);
+  updateLED();
   longPress = 0;
+  delay(200);
 }
 
