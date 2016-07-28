@@ -75,6 +75,7 @@ void setup() {
   digitalWrite (buttonPinLive, HIGH);
   
   initColor();
+  updateLED();
 }
 
 void loop () {
