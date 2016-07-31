@@ -8,7 +8,7 @@ If your activate both LEDs the color turns yellow
 
 I use 4 shiftregisters of the type SN74HC595N to controll the leds with only 3 digital pins of the arduino
 
-The other pins are used to detect kepresses
+The other pins are used to detect keypresses
 
 If a button is pressed the arduino sends a keycommand to the computer
 
