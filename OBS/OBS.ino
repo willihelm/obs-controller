@@ -38,11 +38,11 @@ enum clr { BLK, RED, YEL, GRN };
 //states
 enum st  { READY, STREAMING, RECORDING };
 
-//buttonPins Szene
+//buttonPins for scenes
 int buttonPin[10]       = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-//buttonPin Live
+//buttonPin for LIVE button
 int buttonPinLive       = 10;
-//buttonPins Switch
+//buttonPins for transition
 int buttonPinSwitch[4]  = {A0, A1, A2, A3};
 
 //variable declaration
